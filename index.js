@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer') // v13.0.0 or later
 const fs = require('fs')
 const path = require('path')
+const config = require('./config.json')
 
 // 延迟
 async function sleep(ms) {
@@ -50,7 +51,7 @@ function decodeHtmlEntities(html) {
       '--disable-gpu',
       '--start-maximized',
       '--max_old_space_size=2048', // 限制内存使用为2GB
-      '--proxy-server=127.0.0.1:7890', // 设置代理服务器
+      `--proxy-server=${config.proxy}`, // 使用配置文件中的代理设置
       '--disable-web-security', // 禁用web安全（有助于代理工作）
       '--disable-features=VizDisplayCompositor', // 提高兼容性
     ],
