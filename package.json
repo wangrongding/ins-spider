@@ -2,12 +2,13 @@
   "name": "ins-spider",
   "version": "1.0.0",
   "description": "",
+  "author": "荣顶",
+  "homepage": "https://github.com/wangrongding",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node index.js"
   },
   "keywords": [],
-  "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.8.0",
   "dependencies": {
