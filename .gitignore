@@ -1,4 +1,6 @@
 node_modules/
 user_data
 instagram-data-*.json
+instagram-urls.json
 urls.json
+.DS_Store

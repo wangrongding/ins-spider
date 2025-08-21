@@ -143,13 +143,15 @@ console.log(`搜索关键词: ${keyword}`)
   }
 
   console.log(`滚动结束，总共收集到 ${collectedUrls.size} 个唯一链接`)
-
-  // 更新config.json文件
-  const configData = JSON.parse(fs.readFileSync('./config.json', 'utf8'))
-  configData.urls = Array.from(collectedUrls)
-
-  fs.writeFileSync('./config.json', JSON.stringify(configData, null, 2))
-  console.log(`已将 ${collectedUrls.size} 个链接写入 config.json`)
+  const jsonFilename = `instagram-urls.json`
+  const urlsArray = Array.from(collectedUrls)
+  try {
+    fs.writeFileSync(`./${jsonFilename}`, JSON.stringify(urlsArray, null, 2))
+    console.log(`已将 ${collectedUrls.size} 个链接写入 ${jsonFilename}`)
+  } catch (error) {
+    console.error('写入文件时出错:', error)
+    process.exit(1)
+  }
 
   // 输出前10个链接作为示例
   const sampleUrls = Array.from(collectedUrls).slice(0, 10)

@@ -1,8 +1,6 @@
-const puppeteer = require('puppeteer') // v13.0.0 or later
 const fs = require('fs')
 const path = require('path')
-const config = require('./config.json')
-const urls = require('./urls.json')
+const urls = require('./instagram-urls.json')
 const { createBrowser, createPage } = require('./browser-config')
 
 // 延迟
@@ -119,7 +117,7 @@ async function processInstagramUrl(page, url, index) {
       // 使用索引作为键存储结果
       results[`item_${i + 1}`] = {
         index: i + 1,
-        ...result
+        ...result,
       }
 
       // 如果不是最后一个URL，等待一段时间避免被限制
@@ -144,9 +142,9 @@ async function processInstagramUrl(page, url, index) {
         successCount: resultsArray.filter(r => !r.error).length,
         errorCount: resultsArray.filter(r => r.error).length,
         processedAt: new Date().toISOString(),
-        description: '通过索引区分的Instagram数据采集结果'
+        description: '通过索引区分的Instagram数据采集结果',
       },
-      data: results
+      data: results,
     }
 
     try {

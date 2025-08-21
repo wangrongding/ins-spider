@@ -4,11 +4,11 @@
   "description": "",
   "author": "荣顶",
   "homepage": "https://github.com/wangrongding",
-  "main": "index.js",
+  "main": "get-detail.js",
   "scripts": {
     "openins": "node openins.js",
     "search": "node get-search-urls.js",
-    "get-details": "node index.js",
+    "get-details": "node get-detail.js",
     "start": "node run.js"
   },
   "keywords": [],

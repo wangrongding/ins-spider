@@ -42,7 +42,7 @@ function runSearch() {
 function runGetDetails() {
   return new Promise((resolve, reject) => {
     console.log('\n=== 步骤2: 获取详情 ===')
-    const detailsProcess = spawn('node', ['index.js'], {
+    const detailsProcess = spawn('node', ['get-detail.js'], {
       stdio: 'inherit',
       cwd: __dirname
     })
