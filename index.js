@@ -30,64 +30,165 @@ function decodeHtmlEntities(html) {
     .replace(/&nbsp;/g, ' ')
 }
 
-;(async function main() {
-  const browser = await puppeteer.launch({
-    headless: false,
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    // 使用您的默认Chrome用户数据目录，这样可以保持登录状态 (没生效我擦)
-    // userDataDir: '/Users/wangrongding/Library/Application Support/Google/Chrome/Default', // 这里替换成你的路径
-    defaultViewport: {
-      width: 1920, // 设置浏览器的宽度
-      height: 1080, // 设置浏览器的高度
-      deviceScaleFactor: 1, // 设置默认缩放比例
-      isMobile: false, // 设置为true，则使用mobile user agent
-      hasTouch: false, // 设置是否有触摸屏
-      isLandscape: false, // 设置为true，则浏览器显示为横屏
-    },
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--start-maximized',
-      '--max_old_space_size=2048', // 限制内存使用为2GB
-      `--proxy-server=${config.proxy}`, // 使用配置文件中的代理设置
-      '--disable-web-security', // 禁用web安全（有助于代理工作）
-      '--disable-features=VizDisplayCompositor', // 提高兼容性
-    ],
-  })
-
+// 处理单个URL的核心逻辑
+async function processInstagramUrl(page, url, index) {
   try {
-    const [page] = await browser.pages()
-    await page.setDefaultNavigationTimeout(60000) // 设置60秒超时
+    console.log(`正在处理第 ${index + 1} 个URL: ${url}`)
 
-    console.log('正在导航到Instagram页面...')
-    await page.goto('https://www.instagram.com/p/DNZJEZ5y29E/?img_index=1', {
+    await page.goto(url, {
       waitUntil: 'networkidle0',
+      timeout: 60000,
     })
 
     console.log('页面加载完成，等待内容渲染...')
     await sleep(3000) // 等待3秒确保页面完全加载
 
-    // 获取页面HTML
-    console.log('正在获取页面HTML...')
-    const html = await page.content()
+    // 等待目标元素出现
+    const imgSelector = '.x5yr21d.xu96u03.x10l6tqk.x13vifvy.x87ps6o.xh8yej3'
+    const contentSelector =
+      '.x193iq5w.xeuugli.x13faqbe.x1vvkbs.xt0psk2.x1i0vuye.xvs91rp.xo1l8bm.x5n08af.x10wh9bi.xpm28yp.x8viiok.x1o7cslx.x126k92a'
 
-    // 生成文件名（包含时间戳）
+    try {
+      console.log('等待图片元素加载...')
+      await page.waitForSelector(imgSelector, { timeout: 10000 })
+      console.log('等待内容元素加载...')
+      await page.waitForSelector(contentSelector, { timeout: 10000 })
+    } catch (error) {
+      console.warn('等待元素超时，继续执行...', error.message)
+    }
+
+    // 使用 page.evaluate() 在浏览器上下文中执行代码
+    const info = await page.evaluate(
+      (imgSel, contentSel) => {
+        const imgElement = document.querySelector(imgSel)
+        const contentElement = document.querySelector(contentSel)
+
+        return {
+          url: window.location.href,
+          img: imgElement ? imgElement.src : null,
+          content: contentElement ? contentElement.innerText : null,
+          timestamp: new Date().toISOString(),
+        }
+      },
+      imgSelector,
+      contentSelector
+    )
+
+    console.log(`成功处理URL: ${url}`)
+    return info
+  } catch (error) {
+    console.error(`处理URL ${url} 时出错:`, error.message)
+    return {
+      url: url,
+      img: null,
+      content: null,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    }
+  }
+}
+
+;(async function main() {
+  let browser
+
+  try {
+    // 检查配置文件中的URL列表
+    const urls = config.urls.filter(url => url && url.trim() !== '' && url !== 'TODO')
+
+    if (urls.length === 0) {
+      console.error('配置文件中没有有效的URL，请在config.json中添加Instagram URL')
+      return
+    }
+
+    console.log(`准备处理 ${urls.length} 个URL`)
+
+    browser = await puppeteer.launch({
+      headless: false,
+      executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      defaultViewport: {
+        width: 1920,
+        height: 1080,
+        deviceScaleFactor: 1,
+        isMobile: false,
+        hasTouch: false,
+        isLandscape: false,
+      },
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--start-maximized',
+        '--max_old_space_size=2048',
+        `--proxy-server=${config.proxy}`,
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+      ],
+    })
+
+    const [page] = await browser.pages()
+    await page.setDefaultNavigationTimeout(60000)
+
+    // 存储所有结果的对象，使用索引作为键
+    const results = {}
+
+    // 循环处理每个URL
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i]
+      console.log(`\n=================== 开始处理第 ${i + 1}/${urls.length} 个URL ===================`)
+
+      const result = await processInstagramUrl(page, url, i)
+      // 使用索引作为键存储结果
+      results[`item_${i + 1}`] = {
+        index: i + 1,
+        ...result
+      }
+
+      // 如果不是最后一个URL，等待一段时间避免被限制
+      if (i < urls.length - 1) {
+        console.log('等待2秒后处理下一个URL...')
+        await sleep(2000)
+      }
+    }
+
+    // 生成时间戳文件名
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const decodedFilename = `instagram-page-decoded-${timestamp}.html`
+    const jsonFilename = `instagram-data-${timestamp}.json`
+    const jsonFilePath = path.join(__dirname, jsonFilename)
 
-    // 保存解码后的HTML到文件
-    const decodedHtml = decodeHtmlEntities(html)
-    await saveHtmlToFile(decodedHtml, decodedFilename)
+    // 将结果数组转换为数组格式以便统计
+    const resultsArray = Object.values(results)
 
-    console.log('脚本执行完成！保存了解码版本')
+    // 保存所有结果到JSON文件
+    const finalResults = {
+      metadata: {
+        totalProcessed: resultsArray.length,
+        successCount: resultsArray.filter(r => !r.error).length,
+        errorCount: resultsArray.filter(r => r.error).length,
+        processedAt: new Date().toISOString(),
+        description: '通过索引区分的Instagram数据采集结果'
+      },
+      data: results
+    }
+
+    try {
+      await fs.promises.writeFile(jsonFilePath, JSON.stringify(finalResults, null, 2), 'utf8')
+      console.log(`\n=================== 处理完成 ===================`)
+      console.log(`总共处理: ${finalResults.metadata.totalProcessed} 个URL`)
+      console.log(`成功: ${finalResults.metadata.successCount} 个`)
+      console.log(`失败: ${finalResults.metadata.errorCount} 个`)
+      console.log(`结果已保存到: ${jsonFilePath}`)
+      console.log(`数据结构: 使用索引 item_1, item_2, ... 来区分不同条目`)
+    } catch (error) {
+      console.error('保存结果文件时出错:', error)
+    }
   } catch (error) {
     console.error('执行过程中出错:', error)
   } finally {
-    // 关闭浏览器
-    // await browser.close()
+    // 确保浏览器正确关闭
+    if (browser) {
+      // await browser.close()
+      console.log('浏览器已关闭')
+    }
   }
 })()
-
-// !! TODO 将以上的脚本执行修改成根据 url 列表 循环的，即可

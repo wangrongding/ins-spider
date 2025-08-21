@@ -6,7 +6,10 @@
   "homepage": "https://github.com/wangrongding",
   "main": "index.js",
   "scripts": {
-    "test": "node index.js"
+    "openins": "node openins.js",
+    "search": "node get-search-urls.js",
+    "get-details": "node index.js",
+    "start": "node run.js"
   },
   "keywords": [],
   "license": "ISC",
