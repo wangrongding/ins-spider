@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer') // v13.0.0 or later
 const fs = require('fs')
 const path = require('path')
 const config = require('./config.json')
+const { createBrowser, createPage } = require('./browser-config')
 
 // 获取命令行参数中的搜索关键词
 const keyword = process.argv[2]
@@ -14,33 +15,8 @@ if (!keyword) {
 
 console.log(`搜索关键词: ${keyword}`)
 ;(async function main() {
-  let browser = await puppeteer.launch({
-    headless: false,
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    userDataDir: path.join(__dirname, 'user_data'),
-    defaultViewport: {
-      width: 1920,
-      height: 1080,
-      deviceScaleFactor: 1,
-      isMobile: false,
-      hasTouch: false,
-      isLandscape: false,
-    },
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--start-maximized',
-      '--max_old_space_size=2048',
-      `--proxy-server=${config.proxy}`,
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-    ],
-  })
-
-  const [page] = await browser.pages()
-  await page.setDefaultNavigationTimeout(60000) // 设置60秒超时
+  let browser = await createBrowser()
+  const page = await createPage(browser)
 
   console.log(`正在导航到Instagram页面，搜索关键词: ${keyword}`)
   await page.goto(`https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(keyword)}`, {
