@@ -23,7 +23,6 @@ npm install
 
 ```json
 {
-  "urls": [],
   "proxy": "127.0.0.1:7890"
 }
 ```

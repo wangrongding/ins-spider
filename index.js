@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer') // v13.0.0 or later
 const fs = require('fs')
 const path = require('path')
 const config = require('./config.json')
+const urls = require('./urls.json')
 const { createBrowser, createPage } = require('./browser-config')
 
 // 延迟
@@ -93,15 +94,15 @@ async function processInstagramUrl(page, url, index) {
   let browser
 
   try {
-    // 检查配置文件中的URL列表
-    const urls = config.urls.filter(url => url && url.trim() !== '' && url !== 'TODO')
+    // 检查URLs文件中的URL列表
+    const filteredUrls = urls.filter(url => url && url.trim() !== '' && url !== 'TODO')
 
-    if (urls.length === 0) {
-      console.error('配置文件中没有有效的URL，请在config.json中添加Instagram URL')
+    if (filteredUrls.length === 0) {
+      console.error('urls.json文件中没有有效的URL，请在urls.json中添加Instagram URL')
       return
     }
 
-    console.log(`准备处理 ${urls.length} 个URL`)
+    console.log(`准备处理 ${filteredUrls.length} 个URL`)
 
     browser = await createBrowser()
     const page = await createPage(browser)
@@ -110,9 +111,9 @@ async function processInstagramUrl(page, url, index) {
     const results = {}
 
     // 循环处理每个URL
-    for (let i = 0; i < urls.length; i++) {
-      const url = urls[i]
-      console.log(`\n=================== 开始处理第 ${i + 1}/${urls.length} 个URL ===================`)
+    for (let i = 0; i < filteredUrls.length; i++) {
+      const url = filteredUrls[i]
+      console.log(`\n=================== 开始处理第 ${i + 1}/${filteredUrls.length} 个URL ===================`)
 
       const result = await processInstagramUrl(page, url, i)
       // 使用索引作为键存储结果
@@ -122,7 +123,7 @@ async function processInstagramUrl(page, url, index) {
       }
 
       // 如果不是最后一个URL，等待一段时间避免被限制
-      if (i < urls.length - 1) {
+      if (i < filteredUrls.length - 1) {
         console.log('等待2秒后处理下一个URL...')
         await sleep(2000)
       }
