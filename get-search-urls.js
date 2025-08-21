@@ -158,6 +158,6 @@ console.log(`搜索关键词: ${keyword}`)
     console.log(`${index + 1}. ${url}`)
   })
 
-  // await browser.close()
+  await browser.close()
   console.log('脚本执行完成')
 })()
