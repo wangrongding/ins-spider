@@ -29,10 +29,10 @@ async function createBrowser(options = {}) {
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--start-maximized',
-      '--max_old_space_size=2048',
+      // '--max_old_space_size=2048',
       ...(config.proxy ? [`--proxy-server=${config.proxy}`] : []),
       '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
+      // '--disable-features=VizDisplayCompositor',
     ],
   }
 
@@ -46,8 +46,49 @@ async function createBrowser(options = {}) {
  * @returns {Promise<Page>} 页面实例
  */
 async function createPage(browser, timeout = 60000) {
-  const [page] = await browser.pages()
+  const page = await browser.newPage()
+  
+  // 设置超时
   await page.setDefaultNavigationTimeout(timeout)
+  await page.setDefaultTimeout(timeout)
+  
+  // 设置User-Agent
+  await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+  
+  // 禁用不必要的资源加载以节省内存和提高速度
+  await page.setRequestInterception(true)
+  
+  page.on('request', (request) => {
+    const resourceType = request.resourceType()
+    const url = request.url()
+    
+    // 阻止加载大部分静态资源，只保留必要的HTML和一些基础资源
+    if (resourceType === 'font' || 
+        resourceType === 'media' ||
+        resourceType === 'websocket' ||
+        resourceType === 'manifest' ||
+        resourceType === 'other' ||
+        url.includes('google-analytics') ||
+        url.includes('facebook.com/tr') ||
+        url.includes('doubleclick') ||
+        url.includes('googletagmanager') ||
+        url.includes('analytics') ||
+        url.includes('ads') ||
+        url.includes('.woff') ||
+        url.includes('.woff2') ||
+        url.includes('.ttf') ||
+        url.includes('.eot') ||
+        url.includes('video') ||
+        url.includes('audio')) {
+      request.abort()
+    } else {
+      request.continue()
+    }
+  })
+  
+  // 禁用图像加载（如果你需要图片，可以注释掉这部分）
+  // await page.setJavaScriptEnabled(false) // 如果不需要JS可以禁用
+  
   return page
 }
 

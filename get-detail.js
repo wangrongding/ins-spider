@@ -19,6 +19,42 @@ async function saveHtmlToFile(html, filename) {
   }
 }
 
+// 保存单个项目到JSON文件
+async function saveItemToFile(item, filePath) {
+  try {
+    // 检查文件是否存在
+    let existingData = { data: {}, metadata: { totalProcessed: 0, successCount: 0, errorCount: 0 } }
+    
+    try {
+      const fileContent = await fs.promises.readFile(filePath, 'utf8')
+      existingData = JSON.parse(fileContent)
+    } catch (error) {
+      // 文件不存在或无法读取，使用默认结构
+      console.log('创建新的数据文件...')
+    }
+    
+    // 添加新的项目
+    const itemKey = `item_${item.index}`
+    existingData.data[itemKey] = item
+    
+    // 更新元数据
+    const allItems = Object.values(existingData.data)
+    existingData.metadata = {
+      totalProcessed: allItems.length,
+      successCount: allItems.filter(r => !r.error).length,
+      errorCount: allItems.filter(r => r.error).length,
+      lastUpdated: new Date().toISOString(),
+      description: '通过索引区分的Instagram数据采集结果(实时更新)',
+    }
+    
+    // 写入文件
+    await fs.promises.writeFile(filePath, JSON.stringify(existingData, null, 2), 'utf8')
+    console.log(`项目 ${item.index} 已保存到文件`)
+  } catch (error) {
+    console.error('保存项目到文件时出错:', error)
+  }
+}
+
 // 解码HTML实体的函数
 function decodeHtmlEntities(html) {
   return html
@@ -30,8 +66,8 @@ function decodeHtmlEntities(html) {
     .replace(/&nbsp;/g, ' ')
 }
 
-// 处理单个URL的核心逻辑
-async function processInstagramUrl(page, url, index) {
+// 处理单个URL的核心逻辑并立即写入文件
+async function processInstagramUrl(page, url, index, jsonFilePath) {
   try {
     console.log(`正在处理第 ${index + 1} 个URL: ${url}`)
 
@@ -74,8 +110,16 @@ async function processInstagramUrl(page, url, index) {
       contentSelector
     )
 
-    console.log(`成功处理URL: ${url}`)
-    return info
+    const result = {
+      index: index + 1,
+      ...info,
+    }
+
+    // 立即保存到文件
+    await saveItemToFile(result, jsonFilePath)
+    
+    console.log(`成功处理URL: ${url} 并已保存到文件`)
+    return result
   } catch (error) {
     console.error(`处理URL ${url} 时出错:`, error.message)
     return {
@@ -85,6 +129,26 @@ async function processInstagramUrl(page, url, index) {
       error: error.message,
       timestamp: new Date().toISOString(),
     }
+  }
+}
+
+// 重启浏览器函数
+async function restartBrowser(currentBrowser) {
+  try {
+    if (currentBrowser) {
+      console.log('关闭当前浏览器实例...')
+      await currentBrowser.close()
+    }
+    
+    console.log('创建新的浏览器实例...')
+    const newBrowser = await createBrowser()
+    const newPage = await createPage(newBrowser)
+    
+    console.log('浏览器重启完成')
+    return { browser: newBrowser, page: newPage }
+  } catch (error) {
+    console.error('重启浏览器时出错:', error)
+    throw error
   }
 }
 
@@ -102,22 +166,51 @@ async function processInstagramUrl(page, url, index) {
 
     console.log(`准备处理 ${filteredUrls.length} 个URL`)
 
+    // 生成时间戳文件名，在开始处理前就确定文件路径
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const jsonFilename = `instagram-data-${timestamp}.json`
+    const jsonFilePath = path.join(__dirname, jsonFilename)
+    
+    console.log(`数据将实时保存到: ${jsonFilename}`)
+
+    // 初始化浏览器
     browser = await createBrowser()
-    const page = await createPage(browser)
+    let page = await createPage(browser)
 
-    // 存储所有结果的对象，使用索引作为键
-    const results = {}
+    // 存储处理结果的统计信息
+    let successCount = 0
+    let errorCount = 0
 
-    // 循环处理每个URL
+    // 每批处理的URL数量
+    const BATCH_SIZE = 50
+
+    // 循环处理URL，每50条重启一次浏览器
     for (let i = 0; i < filteredUrls.length; i++) {
       const url = filteredUrls[i]
-      console.log(`\n=================== 开始处理第 ${i + 1}/${filteredUrls.length} 个URL ===================`)
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1
+      const positionInBatch = (i % BATCH_SIZE) + 1
+      
+      // 检查是否需要重启浏览器（除了第一个URL）
+      if (i > 0 && i % BATCH_SIZE === 0) {
+        console.log(`\n🔄 已处理 ${i} 条URL，正在重启浏览器...`)
+        const browserData = await restartBrowser(browser)
+        browser = browserData.browser
+        page = browserData.page
+        console.log(`✅ 浏览器重启完成，开始处理第 ${batchNumber} 批次`)
+        
+        // 重启后等待一下
+        await sleep(2000)
+      }
 
-      const result = await processInstagramUrl(page, url, i)
-      // 使用索引作为键存储结果
-      results[`item_${i + 1}`] = {
-        index: i + 1,
-        ...result,
+      console.log(`\n=================== 第${batchNumber}批次 - 第${positionInBatch}/${Math.min(BATCH_SIZE, filteredUrls.length - Math.floor(i / BATCH_SIZE) * BATCH_SIZE)}个 (总进度: ${i + 1}/${filteredUrls.length}) ===================`)
+
+      const result = await processInstagramUrl(page, url, i, jsonFilePath)
+      
+      // 更新统计
+      if (result.error) {
+        errorCount++
+      } else {
+        successCount++
       }
 
       // 如果不是最后一个URL，等待一段时间避免被限制
@@ -127,37 +220,12 @@ async function processInstagramUrl(page, url, index) {
       }
     }
 
-    // 生成时间戳文件名
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const jsonFilename = `instagram-data-${timestamp}.json`
-    const jsonFilePath = path.join(__dirname, jsonFilename)
-
-    // 将结果数组转换为数组格式以便统计
-    const resultsArray = Object.values(results)
-
-    // 保存所有结果到JSON文件
-    const finalResults = {
-      metadata: {
-        totalProcessed: resultsArray.length,
-        successCount: resultsArray.filter(r => !r.error).length,
-        errorCount: resultsArray.filter(r => r.error).length,
-        processedAt: new Date().toISOString(),
-        description: '通过索引区分的Instagram数据采集结果',
-      },
-      data: results,
-    }
-
-    try {
-      await fs.promises.writeFile(jsonFilePath, JSON.stringify(finalResults, null, 2), 'utf8')
-      console.log(`\n=================== 处理完成 ===================`)
-      console.log(`总共处理: ${finalResults.metadata.totalProcessed} 个URL`)
-      console.log(`成功: ${finalResults.metadata.successCount} 个`)
-      console.log(`失败: ${finalResults.metadata.errorCount} 个`)
-      console.log(`结果已保存到: ${jsonFilePath}`)
-      console.log(`数据结构: 使用索引 item_1, item_2, ... 来区分不同条目`)
-    } catch (error) {
-      console.error('保存结果文件时出错:', error)
-    }
+    console.log(`\n=================== 处理完成 ===================`)
+    console.log(`总共处理: ${filteredUrls.length} 个URL`)
+    console.log(`成功: ${successCount} 个`)
+    console.log(`失败: ${errorCount} 个`)
+    console.log(`结果已实时保存到: ${jsonFilePath}`)
+    console.log(`数据结构: 使用索引 item_1, item_2, ... 来区分不同条目`)
   } catch (error) {
     console.error('执行过程中出错:', error)
   } finally {
